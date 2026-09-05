@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pedido de Casamento</title>
+  <style>
+    :root{--bg:#060610;--accent:#ff3860;--muted:#ddd;}
+    html,body{height:100%;margin:0;}
+    body{background:radial-gradient(circle at 20% 10%, #0b0b2a 0%, var(--bg) 40%), #000;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;overflow:hidden;color:var(--muted)}
+    canvas{position:fixed;inset:0;z-index:0;pointer-events:none}
+    .center{
+      position:relative;z-index:2;min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:22px;padding:28px;text-align:center;
+    }
+    h1{font-size:clamp(22px,4vw,44px);margin:0;color:#fff;text-shadow:0 6px 18px rgba(0,0,0,0.6)}
+    p.lead{color:#ddd;opacity:.9;margin:0;font-size:clamp(14px,1.6vw,18px)}
+    .buttons{display:flex;gap:16px;margin-top:18px;flex-wrap:wrap;justify-content:center}
+    button{
+      --pad-x:28px;--pad-y:12px;
+      font-size:18px;padding:var(--pad-y) var(--pad-x);border-radius:12px;border:0;cursor:pointer;
+      box-shadow:0 6px 22px rgba(0,0,0,0.6);transition:transform .12s ease,box-shadow .12s ease;
+    }
+    button:active{transform:translateY(2px)}
+    .yes{background:linear-gradient(90deg,#ffd166,#ff6b6b);color:#111}
+    .no{background:#1f2937;color:#fff;position:relative}
+    .hint{font-size:13px;color:#bfc7d6;opacity:.95;margin-top:10px}
+    .overlay-play{
+      position:fixed;z-index:4;inset:0;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);background:linear-gradient(180deg,rgba(0,0,0,0.30),rgba(0,0,0,0.55));visibility:hidden;opacity:0;transition:opacity .2s;
+    }
+    .overlay-play.show{visibility:visible;opacity:1}
+    .play-card{background:#fff;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.45);text-align:center;color:#111}
+    .play-card button{background:#2774ff;color:#fff;border-radius:8px;padding:10px 14px;font-size:16px}
+    footer{position:fixed;left:12px;bottom:8px;color:#94a3b8;font-size:12px;z-index:3}
+    @media(max-width:420px){button{font-size:16px;padding:10px 18px}}
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="center" id="page">
+    <h1>Você quer casar comigo?</h1>
+    <p class="lead">Eu só preciso de uma resposta... mas prepare-se para um pouco de mágica ✨</p>
+
+    <div class="buttons" id="buttons">
+      <button class="yes" id="yesBtn">SIM</button>
+      <button class="no" id="noBtn">NÃO</button>
+    </div>
+
+    <div class="hint">Dica: tente clicar no "NÃO".</div>
+  </div>
+
+  <div class="overlay-play" id="overlay">
+    <div class="play-card">
+      <p>O navegador bloqueou o som automático. Clique para ouvir:</p>
+      <button id="allowSound">Ouvir & Iniciar</button>
+    </div>
+  </div>
+
+  <footer>Feito com ❤️</footer>
+
+  <script>
+    // ---------- Speech ----------
+    const texto = "Eu te amo, Naty";
+    function speak(text){
+      try{
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = "pt-BR";
+        u.rate = 1;
+        u.pitch = 1;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      }catch(e){console.warn("Speech not available", e)}
+    }
+
+    // Try to speak on load; if blocked, show overlay.
+    let didSpeak = false;
+    function trySpeakOnLoad(){
+      // Small delay to allow engines to be ready
+      setTimeout(()=>{
+        try{
+          speak(texto);
+          didSpeak = true;
+        }catch(e){ didSpeak = false; }
+        // If not speaking after a short timeout, assume blocked
+        setTimeout(()=>{
+          if(!didSpeak && (speechSynthesis && speechSynthesis.speaking===false)){
+            document.getElementById('overlay').classList.add('show');
+          }
+        },700);
+      },450);
+    }
+
+    // overlay button
+    document.getElementById('allowSound').addEventListener('click', ()=>{
+      speak(texto);
+      document.getElementById('overlay').classList.remove('show');
+    });
+
+    // ---------- Buttons behavior ----------
+    const noBtn = document.getElementById('noBtn');
+    const yesBtn = document.getElementById('yesBtn');
+
+    // Move the NO button to a random location within the viewport (keeping it visible)
+    function moveNoButton(){
+      const padding = 16;
+      const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+      const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+      const rect = noBtn.getBoundingClientRect();
+      const btnW = rect.width;
+      const btnH = rect.height;
+      const maxX = Math.max(padding, vw - btnW - padding);
+      const maxY = Math.max(padding, vh - btnH - padding);
+      let x = Math.random() * maxX;
+      let y = Math.random() * maxY;
+      // Try to keep away from the Yes button
+      const yesRect = yesBtn.getBoundingClientRect();
+      const dx = (yesRect.left + yesRect.width/2) - (x + btnW/2);
+      const dy = (yesRect.top + yesRect.height/2) - (y + btnH/2);
+      if(Math.hypot(dx, dy) < 140){
+        x = (x + btnW + 160) % maxX;
+        y = (y + btnH + 80) % maxY;
+      }
+      noBtn.style.position = "absolute";
+      noBtn.style.left = x + "px";
+      noBtn.style.top = y + "px";
+    }
+
+    // Move on hover and on touchstart (for mobile)
+    noBtn.addEventListener('mouseenter', moveNoButton);
+    noBtn.addEventListener('click', moveNoButton);
+    noBtn.addEventListener('touchstart', (e)=>{ e.preventDefault(); moveNoButton(); });
+
+    // ---------- Fireworks ----------
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    let W=innerWidth, H=innerHeight;
+    canvas.width = W; canvas.height = H;
+
+    window.addEventListener('resize', ()=>{ W=innerWidth; H=innerHeight; canvas.width=W; canvas.height=H; });
+
+    // Simple particle-based fireworks
+    class Particle {
+      constructor(x,y,color,vel,life){
+        this.x=x;this.y=y;this.color=color;this.vx=vel.x;this.vy=vel.y;this.life=life;this.alpha=1;
+      }
+      update(dt){
+        this.vy += 0.06; // gravity
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.alpha -= 0.015;
+        if(this.alpha<0) this.alpha=0;
+      }
+      draw(ctx){
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x,this.y, Math.max(0,2.0 * this.alpha), 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    let particles = [];
+    function explode(x,y,baseColor,amount=60){
+      for(let i=0;i<amount;i++){
+        const angle = Math.random()*Math.PI*2;
+        const speed = Math.random()*5 + 1.5;
+        const vx = Math.cos(angle)*speed;
+        const vy = Math.sin(angle)*speed;
+        const hue = Math.floor(baseColor + (Math.random()*60-30));
+        const color = `hsl(${hue}deg, 90%, 60%)`;
+        particles.push(new Particle(x,y,color,{x:vx,y:vy}, 60));
+      }
+    }
+
+    // launch rocket then explode
+    function launchFirework(){
+      const startX = Math.random() * (W*0.6) + W*0.2;
+      const startY = H + 40;
+      const peakY = Math.random() * (H*0.5) + H*0.1;
+      const hueBase = Math.random()*360;
+      // rocket animation (simple)
+      const rocket = {x:startX,y:startY,vy:-6-hueBase%3, hue:hueBase};
+      const rocketInterval = setInterval(()=>{
+        rocket.vy += 0.04;
+        rocket.y += rocket.vy;
+        // small trail
+        particles.push(new Particle(rocket.x, rocket.y, `hsl(${rocket.hue}deg, 90%, 60%)`, {x:(Math.random()-0.5)*0.6,y:(Math.random()-0.5)*0.6}, 40));
+        if(rocket.y <= peakY){
+          clearInterval(rocketInterval);
+          explode(rocket.x, rocket.y, rocket.hue, 75);
+        }
+      }, 16);
+    }
+
+    let running = false;
+    function startFireworks(){
+      if(running) return;
+      running = true;
+      // launch a sequence
+      let launches = 0;
+      const seq = setInterval(()=>{
+        launchFirework();
+        launches++;
+        if(launches>12){ clearInterval(seq); setTimeout(()=>running=false,2200) }
+      }, 350);
+    }
+
+    // animation loop
+    let last = performance.now();
+    function frame(t){
+      const dt = (t - last)/16.66;
+      last = t;
+      ctx.fillStyle = "rgba(6,6,16,0.25)";
+      ctx.fillRect(0,0,W,H);
+
+      // update & draw particles
+      for(let i=particles.length-1;i>=0;i--){
+        const p = particles[i];
+        p.update(dt);
+        p.draw(ctx);
+        if(p.alpha <= 0.01 || p.y > H+50) particles.splice(i,1);
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    // Yes button behavior: speak and start fireworks and confetti effect
+    yesBtn.addEventListener('click', ()=>{
+      // try speak
+      speak(texto);
+      // start fireworks
+      startFireworks();
+      // nice visual pulse
+      yesBtn.animate([{transform:'scale(1)'},{transform:'scale(1.08)'},{transform:'scale(1)'}],{duration:600});
+      // optional: make the background brighter for a moment
+      document.body.animate([{filter:'brightness(1)'},{filter:'brightness(1.25)'},{filter:'brightness(1)'}],{duration:700});
+    });
+
+    // Try speech on load
+    trySpeakOnLoad();
+
+    // Small initial randomize position for NO so the layout isn't centered-only
+    setTimeout(moveNoButton, 400);
+  </script>
+</body>
+</html>
